@@ -5,8 +5,6 @@
   <img src="assets/logo-light.png" alt="ccpulse-tv" width="420">
 </picture>
 
-<br><br>
-
 <img src="docs/demo.gif" width="420" alt="ccpulse-tv running on a SmallTV-PRO: boot, usage, critter animations, clock">
 
 **Claude, on your desk.**
