@@ -1,0 +1,6 @@
+config.env
+out/
+device-backup/
+push.log
+__pycache__/
+*.pyc
