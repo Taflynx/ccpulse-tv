@@ -77,6 +77,19 @@ A `~` after a label means the number is an estimate. That happens when the offic
 The SmallTV-PRO already has a photo-album app and an HTTP upload endpoint. ccpulse-tv renders screens on your own
 machine and keeps that album fed. Nothing gets flashed and the firmware isn't modified, and you can undo it from the device's web UI.
 
+## Get the hardware
+
+ccpulse-tv runs on the **GeekMagic SmallTV-PRO** (the ESP32 model with a 1.54" 240×240 screen). Built and tested on firmware V3.3.67.
+
+| Where | Link |
+|---|---|
+| 🛒 GeekMagic official store on AliExpress | **[geekmagic.aliexpress.com](https://geekmagic.aliexpress.com)**: search for *SmallTV PRO* |
+| 🏷️ GeekMagic official shop (product page) | **[GeekMagic PRO: Smart Desktop Display](https://shop.geekmagic.cc/products/geekmagic-pro-bitcoin-cryptocurrency-stocks-futures-currency-exchange-rate-price-tracker-ticker-time-clock-weather-display)** |
+
+> **Watch out for look-alikes.** Third-party listings and clones exist. Buy from the official store, and after setup check that
+> `http://<device-ip>/v.json` reports `"m": "GeekMagic SmallTV-PRO"`. The cheaper SmallTV-*Ultra* uses a different chip and
+> firmware and hasn't been tested with this project.
+
 ## Quick start
 
 You need Python 3 with Pillow, a SmallTV-PRO on your network, and [ccpulse](https://github.com/Taflynx/ccpulse) for the usage screen.
