@@ -1,0 +1,228 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ccpulse-tv product renders</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<script type="module">
+/*
+  Product renders of a SmallTV-style mini display showing the real ccpulse-tv screens.
+  ?shot=hero|desk|trio|close   &w=1600&h=1000
+  Sets window.__done = true when the frame is ready.
+*/
+import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { BokehPass } from "three/addons/postprocessing/BokehPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+const q = new URLSearchParams(location.search);
+const SHOT = q.get("shot") || "hero";
+const W = +(q.get("w") || 1600), H = +(q.get("h") || 1000);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = +(q.get("exp") || 0.72);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.VSMShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+
+const loader = new THREE.TextureLoader();
+const tex = url => new Promise(res => loader.load(url, t => {
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; res(t);
+}));
+
+// ---------- procedural textures ----------
+function canvasTex(w, h, draw, srgb = true) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8; return t;
+}
+function rand(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+const woodTex = canvasTex(2048, 2048, (g, w, h) => {
+  const r = rand(7);
+  g.fillStyle = "#6b4a33"; g.fillRect(0, 0, w, h);
+  for (let y = 0; y < h; y += 1) {
+    const v = Math.sin(y * 0.045 + Math.sin(y * 0.006) * 6) * 0.5 + 0.5;
+    const n = r() * 0.08;
+    const l = 30 + v * 14 + n * 30;
+    g.fillStyle = `hsl(26, 38%, ${l}%)`; g.fillRect(0, y, w, 1);
+  }
+  g.globalAlpha = 0.08;
+  for (let i = 0; i < 2500; i++) { g.fillStyle = r() > .5 ? "#2a1a10" : "#c79b72"; g.fillRect(r() * w, r() * h, 2 + r() * 260, 1); }
+  g.globalAlpha = 1;
+});
+woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping;
+woodTex.rotation = Math.PI / 2; woodTex.repeat.set(5, 5);
+const woodRough = canvasTex(512, 512, (g, w, h) => {
+  const r = rand(3); g.fillStyle = "#9a9a9a"; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 4000; i++) { g.fillStyle = r() > .5 ? "#b0b0b0" : "#808080"; g.fillRect(r() * w, r() * h, 1 + r() * 60, 1); }
+}, false);
+woodRough.wrapS = woodRough.wrapT = THREE.RepeatWrapping;
+// fine plastic grain as a bump map
+const grain = canvasTex(512, 512, (g, w, h) => {
+  const img = g.createImageData(w, h), r = rand(11);
+  for (let i = 0; i < img.data.length; i += 4) { const v = 118 + r() * 20; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+  g.putImageData(img, 0, 0);
+}, false);
+grain.wrapS = grain.wrapT = THREE.RepeatWrapping; grain.repeat.set(3, 3);
+
+// ---------- the device (units: cm) ----------
+const BODY_W = 4.6, BODY_H = 4.2, BODY_D = 3.8;
+async function makeDevice(screenUrl, shell = "graphite") {
+  const g = new THREE.Group();
+  const shellCol = shell === "white" ? 0xd9d5ce : 0x2b2b30;
+  const body = new THREE.Mesh(
+    new RoundedBoxGeometry(BODY_W, BODY_H, BODY_D, 6, 0.42),
+    new THREE.MeshPhysicalMaterial({ color: shellCol, roughness: shell === "white" ? 0.42 : 0.5, metalness: 0,
+      clearcoat: 0.25, clearcoatRoughness: 0.5, bumpMap: grain, bumpScale: 0.004 }));
+  body.castShadow = body.receiveShadow = true;
+  body.position.y = BODY_H / 2 + 0.12;
+  g.add(body);
+
+  // front face: black glass panel slightly proud of the body
+  const faceW = BODY_W - 0.62, faceH = BODY_H - 0.62;
+  const face = new THREE.Mesh(new RoundedBoxGeometry(faceW, faceH, 0.08, 4, 0.18),
+    new THREE.MeshPhysicalMaterial({ color: 0x030304, roughness: 0.18, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.35 }));
+  face.position.set(0, body.position.y, BODY_D / 2 - 0.025);
+  g.add(face);
+
+  // screen (1.54" ~ 2.77 cm active area), emissive with the real 240x240 image
+  const st = await tex(screenUrl);
+  const S = 2.78;
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(S, S),
+    new THREE.MeshBasicMaterial({ map: st, toneMapped: false, color: new THREE.Color(0.92, 0.92, 0.92) }));
+  screen.position.set(0, body.position.y + 0.12, BODY_D / 2 + 0.017);
+  g.add(screen);
+  // glass over the screen: reflections only
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(faceW - 0.06, faceH - 0.06),
+    new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.025,
+      clearcoat: 1, envMapIntensity: 1.0, depthWrite: false }));
+  glass.position.set(0, body.position.y, BODY_D / 2 + 0.02);
+  g.add(glass);
+
+  // tiny status LED under the screen
+  const led = new THREE.Mesh(new THREE.CircleGeometry(0.035, 24), new THREE.MeshBasicMaterial({ color: 0xff8a5c, toneMapped: false }));
+  led.position.set(0, body.position.y - 1.5, BODY_D / 2 + 0.021);
+  g.add(led);
+
+  // rubber feet
+  for (const x of [-1.5, 1.5]) for (const z of [-1.2, 1.2]) {
+    const f = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.14, 32),
+      new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.9 }));
+    f.position.set(x, 0.07, z); f.castShadow = true; g.add(f);
+  }
+  // USB-C port on the back
+  const port = new THREE.Mesh(new RoundedBoxGeometry(0.9, 0.32, 0.05, 2, 0.14),
+    new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6, metalness: 0.4 }));
+  port.position.set(0, 0.9, -BODY_D / 2 - 0.01); g.add(port);
+  return g;
+}
+
+// ---------- environments ----------
+function studio(color = 0xd9d4cc) {
+  // seamless sweep
+  const shape = new THREE.Shape();
+  const geo = new THREE.PlaneGeometry(200, 120, 1, 60);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) + 60; // 0..120
+    let z, yy;
+    if (y < 40) { z = 40 - y; yy = 0; } else { const a = Math.min((y - 40) / 25, 1) * Math.PI / 2; z = -Math.sin(a) * 16; yy = (1 - Math.cos(a)) * 16 + Math.max(0, y - 65); }
+    pos.setXYZ(i, pos.getX(i), yy, z - 14);
+  }
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.95 }));
+  m.receiveShadow = true; scene.add(m);
+}
+function desk() {
+  const top = new THREE.Mesh(new THREE.BoxGeometry(80, 1.6, 40),
+    new THREE.MeshPhysicalMaterial({ map: woodTex, roughnessMap: woodRough, roughness: 0.55, clearcoat: 0.35, clearcoatRoughness: 0.35 }));
+  top.position.y = -0.8; top.receiveShadow = true; scene.add(top);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(200, 100), new THREE.MeshStandardMaterial({ color: 0x2b2826, roughness: 1 }));
+  wall.position.set(0, 30, -18); scene.add(wall);
+  // a blurred keyboard and mug for scale (kept simple, they sit in the bokeh)
+  const kb = new THREE.Mesh(new RoundedBoxGeometry(30, 0.9, 10, 3, 0.35), new THREE.MeshPhysicalMaterial({ color: 0x1f1f22, roughness: 0.6 }));
+  kb.position.set(-17, 0.45, -2); kb.castShadow = kb.receiveShadow = true; scene.add(kb);
+  for (let i = 0; i < 14; i++) for (let j = 0; j < 4; j++) {
+    const k = new THREE.Mesh(new RoundedBoxGeometry(1.7, 0.5, 1.7, 2, 0.2), new THREE.MeshPhysicalMaterial({ color: 0x2c2c31, roughness: 0.55 }));
+    k.position.set(-29 + i * 1.9, 1.0, -5.4 + j * 2.0); k.castShadow = true; scene.add(k);
+  }
+  const mug = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.3, 9, 64, 1, true),
+    new THREE.MeshPhysicalMaterial({ color: 0xd97757, roughness: 0.35, clearcoat: 0.6, side: THREE.DoubleSide }));
+  mug.position.set(13, 4.5, -7); mug.castShadow = true; scene.add(mug);
+  const coffee = new THREE.Mesh(new THREE.CircleGeometry(3.4, 48), new THREE.MeshStandardMaterial({ color: 0x24140c, roughness: 0.2 }));
+  coffee.rotation.x = -Math.PI / 2; coffee.position.set(13, 8.2, -7); scene.add(coffee);
+}
+
+function lights(intensity = 1) {
+  scene.add(new THREE.HemisphereLight(0xfff3e6, 0x2a2420, 0.35 * intensity));
+  const key = new THREE.DirectionalLight(0xfff1e0, 2.4 * intensity);
+  key.position.set(-14, 22, 16); key.castShadow = true;
+  key.shadow.mapSize.set(4096, 4096); key.shadow.radius = 14; key.shadow.blurSamples = 25; key.shadow.bias = -0.0004;
+  const c = key.shadow.camera; c.left = -30; c.right = 30; c.top = 30; c.bottom = -30; c.near = 1; c.far = 80;
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0xbcd2ff, 1.1 * intensity); rim.position.set(18, 10, -14); scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35 * intensity); fill.position.set(10, 4, 20); scene.add(fill);
+}
+
+// ---------- shots ----------
+const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 500);
+let focus = 30, aperture = 0, bloom = 0.35;
+
+if (SHOT === "hero") {
+  studio(0x8f887f); lights();
+  const d = await makeDevice("../docs/screens/usage.png"); d.rotation.y = 0.3; scene.add(d);
+  camera.position.set(7.4, 5.2, 12.0); camera.lookAt(0.2, 2.25, 0);
+  focus = 18; aperture = 0;
+} else if (SHOT === "trio") {
+  studio(0x24211f); lights(1.1);
+  const a = await makeDevice("../docs/screens/clock.png", "white"); a.position.set(-5.6, 0, 1.2); a.rotation.y = 0.32; scene.add(a);
+  const b = await makeDevice("../docs/screens/usage.png"); b.position.set(0, 0, -0.6); scene.add(b);
+  const c = await makeDevice("../docs/screens/clawd_jump.png", "white"); c.position.set(5.6, 0, 1.2); c.rotation.y = -0.32; scene.add(c);
+  camera.position.set(0, 7.5, 25); camera.lookAt(0, 2.3, 0);
+  focus = 25; aperture = 0; bloom = 0;
+} else if (SHOT === "desk") {
+  desk(); lights(0.95);
+  const d = await makeDevice("../docs/screens/clock.png"); d.position.set(2, 0, 0); d.rotation.y = -0.25; scene.add(d);
+  camera.fov = 22; camera.updateProjectionMatrix();
+  camera.position.set(12, 6.2, 19); camera.lookAt(1.2, 2.5, 0);
+  focus = +(q.get("f") || 22); aperture = +(q.get("ap") || 0.0007); bloom = 0.4;
+} else if (SHOT === "close") {
+  studio(0x1d1b1a); lights(0.8);
+  const d = await makeDevice("../docs/screens/clawd_think.png"); d.rotation.y = 0.12; scene.add(d);
+  camera.position.set(-8.4, 4.6, 11.2); camera.lookAt(0.3, 2.3, 0);
+  focus = 14.2; aperture = +(q.get("ap") || 0.00015); bloom = 0.55;
+}
+
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(1); composer.setSize(W, H);
+composer.addPass(new RenderPass(scene, camera));
+if (aperture) composer.addPass(new BokehPass(scene, camera, { focus, aperture, maxblur: 0.006, width: W, height: H }));
+if (bloom > 0) composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), bloom * 0.6, 0.4, 0.985));
+composer.addPass(new OutputPass());
+composer.render();
+window.__done = true;
+</script>
+</body>
+</html>
