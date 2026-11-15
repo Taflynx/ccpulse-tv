@@ -1,8 +1,13 @@
 <div align="center">
 
-<img src="docs/demo.gif" width="420" alt="ccpulse-tv running on a SmallTV-PRO: boot, usage, critter animations, clock">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+  <img src="assets/logo-light.png" alt="ccpulse-tv" width="420">
+</picture>
 
-# ccpulse-tv
+<br><br>
+
+<img src="docs/demo.gif" width="420" alt="ccpulse-tv running on a SmallTV-PRO: boot, usage, critter animations, clock">
 
 **Claude, on your desk.**
 Your real Claude Code usage against the clock, a pixel critter with moods, and a clock with live weather.
