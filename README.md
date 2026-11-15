@@ -20,20 +20,20 @@ It all runs on a palm-sized GeekMagic SmallTV-PRO with stock firmware.
 ## On your desk
 
 <p align="center">
-  <img src="docs/renders/hero.jpg" alt="3D render: the usage screen on a graphite mini display">
+  <img src="docs/renders/carousel.webp" width="760" alt="3D renders rotating: usage screen in a studio, clock on a wooden desk, the thinking critter up close, three displays side by side">
 </p>
-
-| | |
-|:---:|:---:|
-| <img src="docs/renders/desk.jpg" alt="3D render: clock and weather on a wooden desk"> | <img src="docs/renders/close.jpg" alt="3D render: close-up of the thinking critter"> |
-| Clock + weather, next to your keyboard | The critter, thinking |
 
 <p align="center">
-  <img src="docs/renders/trio.jpg" alt="3D render: three displays showing clock, usage and the critter">
+  <a href="docs/renders/hero.jpg"><img src="docs/renders/hero_thumb.jpg" width="180" alt="studio"></a>
+  <a href="docs/renders/desk.jpg"><img src="docs/renders/desk_thumb.jpg" width="180" alt="desk"></a>
+  <a href="docs/renders/close.jpg"><img src="docs/renders/close_thumb.jpg" width="180" alt="close-up"></a>
+  <a href="docs/renders/trio.jpg"><img src="docs/renders/trio_thumb.jpg" width="180" alt="three displays"></a>
+  <br><sub>The carousel advances on its own. Click a thumbnail for the full-size render.</sub>
 </p>
 
-<sub>3D renders (three.js, physically based materials), not photos. The screens are the real 240×240 output of this project.
-Re-render with <code>render3d/index.html?shot=hero|desk|close|trio</code>.</sub>
+<sub>Path-traced 3D renders (Blender Cycles, fully procedural scene), not photos. The screens are the real 240×240 output of this project, pixel grid included.
+Re-render with <code>blender -b --python render3d/blender_scene.py -- --shot hero|desk|close|trio</code>, then
+<code>python3 render3d/carousel.py</code>.</sub>
 
 ## What's on the screen
 
@@ -148,7 +148,7 @@ clawd.py          critter sprite, animations, device-safe GIF encoder
 boot.py           boot animation
 demo.py           README / GitHub Pages assets from sample data
 docs/             GitHub Pages site with the live simulator, screenshots and 3D renders
-render3d/         three.js product renders of the device with the real screens
+render3d/         Blender (Cycles) + three.js product renders of the device with the real screens
 fonts/            Liberation Sans (SIL OFL)
 ```
 
